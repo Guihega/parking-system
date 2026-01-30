@@ -1,0 +1,8 @@
+/* 👇 tu sistema visual global */
+@import './design-system.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
