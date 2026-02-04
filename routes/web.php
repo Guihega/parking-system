@@ -8,8 +8,13 @@ use App\Http\Controllers\CashSessionController;
 use Illuminate\Support\Facades\Http;
 
 Route::get('/', function () {
-    return view('welcome');
+    if (auth()->check()) {
+        return redirect('/parking/core');
+    }
+
+    return redirect()->route('login');
 });
+
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

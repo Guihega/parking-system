@@ -35,3 +35,16 @@
         </div>
     </body>
 </html>
+
+<script>
+function toggleUserMenu(){
+    document.getElementById('userMenu').classList.toggle('hidden');
+}
+
+document.addEventListener('click', e=>{
+    const menu = document.getElementById('userMenu');
+    if(!e.target.closest('.nav-right')){
+        menu?.classList.add('hidden');
+    }
+});
+</script>
