@@ -12,6 +12,9 @@ use App\Http\Middleware\SecurityHeadersMiddleware;
 use App\Http\Middleware\EnsureCashSessionState;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Cookie\Middleware\EncryptCookies;
+use App\Http\Middleware\TenantContextMiddleware;
+use App\Http\Middleware\LoadUserPermissionsMiddleware;
+
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -32,8 +35,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'jwt'            => JwtAuthMiddleware::class,
             'perm'           => PermissionMiddleware::class,
             'vjwt'           => ValidateJwtTokenMiddleware::class,
+            'tenant'         => TenantContextMiddleware::class,   // 👈 NUEVO
             'secure.headers' => SecurityHeadersMiddleware::class,
-            'cash.session' => EnsureCashSessionState::class,
+            'cash.session'  => EnsureCashSessionState::class
         ]);
 
         $middleware->group('api', [
@@ -42,7 +46,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->appendToGroup('api', \Illuminate\Http\Middleware\HandleCors::class);
-
+        $middleware->append(LoadUserPermissionsMiddleware::class);
     })
     ->withExceptions(function (Exceptions $exceptions) {
 

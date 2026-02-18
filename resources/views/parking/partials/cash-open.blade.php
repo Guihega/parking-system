@@ -6,7 +6,7 @@
     <div class="form-block">
         <div class="form-group">
             <label>Sucursal</label>
-            <select id="branchSelectCash" class="control-field"></select>
+            <select id="branchSelectCash" class="ui-select"></select>
         </div>
         <div class="form-group">
             <label>Monto inicial <span class="currency">$</span></label>
@@ -75,36 +75,49 @@
     /* ============================
     Cargar sucursales
     ============================= */
-    async function loadBranches(){
+    async function loadBranches() {
         const branchSelectCash = document.getElementById('branchSelectCash');
-        if(!branchSelectCash) return;
+        if (!branchSelectCash) return;
 
-        try{
+        try {
             const res = await fetch('/api/branches', {
-                headers:{
+                headers: {
                     'Authorization': 'Bearer {{ session("jwt_token") }}',
                     'Accept': 'application/json'
                 }
             });
 
-            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
 
-            if(data.status !== 'success') throw data;
+            const { status, branches } = await res.json();
 
-            branchSelectCash.innerHTML = '<option value="">Selecciona sucursal</option>';
+            if (status !== 'success' || !Array.isArray(branches) || branches.length === 0) {
+                throw new Error('Sin sucursales');
+            }
 
-            data.branches.forEach(b=>{
+            branchSelectCash.innerHTML =
+                '<option value="">Selecciona sucursal</option>';
+
+            branches.forEach(b => {
                 const opt = document.createElement('option');
                 opt.value = b.id;
-                opt.textContent = `${b.name} (${b.location})`;
+                opt.textContent = b.location
+                    ? `${b.name} (${b.location})`
+                    : b.name;
+
                 branchSelectCash.appendChild(opt);
             });
 
-        }catch(e){
-            console.error(e);
+        } catch (e) {
+            console.error('loadBranches:', e);
             showError('No se pudieron cargar sucursales');
         }
     }
+
+
+
 
 
     /* ============================

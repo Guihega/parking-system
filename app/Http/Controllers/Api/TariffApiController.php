@@ -22,7 +22,7 @@ class TariffApiController extends Controller
             'tariffs' => $tariffs
         ]);
     }
-
+ 
     public function store(Request $request)
     {
         $request->validate([

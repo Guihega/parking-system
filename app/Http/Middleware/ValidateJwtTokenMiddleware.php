@@ -28,7 +28,7 @@ class ValidateJwtTokenMiddleware
                 'message' => 'Usuario no autenticado'
             ], 401);
         }
-
+ 
         /*
         |--------------------------------------------------------------------------
         | Validar JWT
@@ -75,7 +75,7 @@ class ValidateJwtTokenMiddleware
 
         /*
         |--------------------------------------------------------------------------
-        | Construir permisos desde DB (no JWT)
+        | Construir permisos reales desde DB
         |--------------------------------------------------------------------------
         */
 
@@ -88,12 +88,15 @@ class ValidateJwtTokenMiddleware
 
         /*
         |--------------------------------------------------------------------------
-        | Inyectar contexto auth
+        | Inyectar contexto SaaS + auth
         |--------------------------------------------------------------------------
         */
 
         $request->attributes->set('auth_user', $user);
         $request->attributes->set('jwt_permissions', $permissions);
+        $request->attributes->set('tenant_id', $user->tenant_id);      // 👈 NUEVO
+        $request->attributes->set('is_superadmin', (bool) $user->is_superadmin);
+
         $request->setUserResolver(fn () => $user);
 
         return $next($request);

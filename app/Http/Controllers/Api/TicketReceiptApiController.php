@@ -19,20 +19,17 @@ class TicketReceiptApiController extends Controller
         }
 
         try {
-            $result = DB::select('CALL sp_get_ticket_receipt(?)', [$token]);
+            $user = request()->get('auth_user');
 
-            // REGISTRAR REIMPRESIÓN
-/*             DB::select(
-                'CALL sp_log_ticket_event(?, ?, ?, ?)',
+            $result = DB::select(
+                'CALL sp_get_ticket_receipt(?, ?)',
                 [
-                    $token,
-                    'reprint',
-                    'Reimpresión de comprobante',
-                    json_encode([
-                        'reason' => 'Reimpresión solicitada'
-                    ])
+                    $user->tenant_id,
+                    $token
                 ]
-            ); */
+            );
+
+            //$result = DB::select('CALL sp_get_ticket_receipt(?)', [$token]);
 
             return response()->json([
                 'status' => 'success',

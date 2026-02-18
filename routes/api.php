@@ -24,7 +24,9 @@ use App\Http\Controllers\Api\{
     ParkingSpaceApiController,
     TicketInfoApiController,
     BranchApiController,
-    VehicleTypeController
+    VehicleTypeController,
+    TicketAuditApiController,
+    UserApiController
 };
 
 use Illuminate\Http\Request;
@@ -43,7 +45,7 @@ Route::post('/auth/login', [AuthApiController::class, 'login'])
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['vjwt'])->group(function () {
+Route::middleware(['vjwt', 'tenant'])->group(function () {
 
     // REPORTES
     Route::get('/reports/sales', [SalesReportApiController::class, 'show'])
@@ -131,10 +133,12 @@ Route::middleware(['vjwt'])->group(function () {
     Route::get('/audit-logs', [AuditLogApiController::class, 'index'])
         ->middleware(['perm:audit.view']);
 
+    Route::get('/roles/{id}/audit', [RoleApiController::class, 'audit'])
+        ->middleware('perm:roles.audit');
     // ESTACIONAMIENTO - OPERACIÓN
 
     Route::get('/parking-spaces', [ParkingSpaceApiController::class, 'index'])
-        ->middleware('perm:parking.view');
+        ->middleware('perm:parking.entry');
 
     Route::post('/tickets/entry', [TicketApiController::class, 'store'])
         ->middleware('perm:parking.entry');
@@ -167,7 +171,20 @@ Route::middleware(['vjwt'])->group(function () {
         ->middleware('perm:cash.open');
 
     Route::get('/vehicle-types', [VehicleTypeController::class, 'index'])
-        ->middleware('perm:parking.view');
+        ->middleware('perm:parking.entry');
+
+/*     Route::get('/branches', [BranchApiController::class, 'index']);
+    Route::post('/branches', [BranchApiController::class, 'store']);
+    Route::put('/branches/{id}', [BranchApiController::class, 'update']);
+    Route::patch('/branches/{id}/toggle', [BranchApiController::class, 'toggle']);
+    Route::delete('/branches/{id}', [BranchApiController::class, 'destroy']); */
+
+    Route::get('/audit/tickets', [TicketAuditApiController::class, 'index'])
+        ->middleware('perm:tickets.view');
+
+    Route::get('/admin/tickets/{token}',[TicketAuditApiController::class, 'show']
+            )->middleware('perm:audit.view');
+
 });
 
 Route::fallback(function () {
@@ -176,5 +193,7 @@ Route::fallback(function () {
         'message' => 'Endpoint no encontrado'
     ], 404);
 });
+
+
 
 

@@ -9,25 +9,33 @@ class PermissionMiddleware
 {
     public function handle(Request $request, Closure $next, string $permission)
     {
-        // 1️⃣ Usuario autenticado (inyectado por ValidateJwtTokenMiddleware)
-        $user = $request->attributes->get('auth_user');
+        // ✅ primero intenta Laravel session (WEB)
+        $user = auth()->user();
+
+        // 🔁 fallback JWT (API)
+        if (!$user) {
+            $user = $request->attributes->get('auth_user');
+        }
 
         if (!$user) {
             return response()->json([
-                'status'  => 'error',
-                'code'    => 'UNAUTHENTICATED',
+                'status' => 'error',
+                'code' => 'UNAUTHENTICATED',
                 'message' => 'Usuario no autenticado'
             ], 401);
         }
 
-        // 2️⃣ Permisos expuestos desde el JWT
-        $permissions = (array) $request->attributes->get('jwt_permissions', []);
+        // obtener permisos reales
+        $permissions = $user->roles
+            ->flatMap(fn($r) => $r->permissions)
+            ->pluck('code')
+            ->unique()
+            ->toArray();
 
-        // 3️⃣ Permiso faltante
         if (!in_array($permission, $permissions, true)) {
             return response()->json([
-                'status'  => 'error',
-                'code'    => 'PERMISSION_DENIED',
+                'status' => 'error',
+                'code' => 'PERMISSION_DENIED',
                 'message' => 'No tienes permiso para esta acción'
             ], 403);
         }

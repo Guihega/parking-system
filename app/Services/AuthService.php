@@ -5,71 +5,75 @@ namespace App\Services;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Firebase\JWT\JWT;
-use App\Services\AuditService;
-use Exception;
+use App\Models\User;
+use Illuminate\Support\Facades\Gate;
+
 
 class AuthService
 {
     public static function login(string $email, string $password): array
     {
-        $user = DB::table('users')
-            ->where('email', $email)
-            ->first();
+        // 1️⃣ Login vía SP
+        $result = DB::selectOne(
+            'CALL sp_auth_login(?)',
+            [$email]
+        );
 
-        if (!$user) {
-            AuditService::loginFailure(null, $email, 'USER_NOT_FOUND');
-            throw new Exception('INVALID_CREDENTIALS');
+        if (!$result) {
+            throw new \Exception('USER_NOT_FOUND');
         }
 
-        if (!$user->is_active) {
-            AuditService::loginFailure($user->id, $user->email, 'USER_DISABLED');
-            throw new Exception('USER_DISABLED');
+        if (!$result->is_active) {
+            throw new \Exception('USER_DISABLED');
         }
 
-        if (!Hash::check($password, $user->password)) {
-            AuditService::loginFailure($user->id, $user->email, 'INVALID_PASSWORD');
-            throw new Exception('INVALID_CREDENTIALS');
+        // 2️⃣ Validar password
+        if (!Hash::check($password, $result->password)) {
+            throw new \Exception('INVALID_CREDENTIALS');
         }
 
-        // Roles
-        $roles = DB::table('roles')
-            ->join('role_user', 'roles.id', '=', 'role_user.role_id')
-            ->where('role_user.user_id', $user->id)
-            ->pluck('roles.code');
+        // 3️⃣ Permisos efectivos
+        $permissions = DB::select(
+            'CALL sp_auth_get_effective_permissions(?)',
+            [$result->user_id]
+        );
 
-        // Permisos
-        $permissions = DB::table('permissions')
-            ->join('permission_role', 'permissions.id', '=', 'permission_role.permission_id')
-            ->join('role_user', 'permission_role.role_id', '=', 'role_user.role_id')
-            ->where('role_user.user_id', $user->id)
-            ->pluck('permissions.code')
-            ->unique()
-            ->values();
+        $permissionCodes = collect($permissions)
+            ->pluck('code')
+            ->values()
+            ->toArray();
 
+        // 4️⃣ User model (solo para Laravel session)
+        $user = User::findOrFail($result->user_id);
+
+        // 5️⃣ Payload JWT
         $payload = [
-            'iss'           => 'parking-system',
-            'sub'           => $user->id,
-            'name'          => $user->name,
-            'email'         => $user->email,
-            'roles'         => $roles,
-            'permissions'  => $permissions,
-            'token_version'=> $user->token_version,
-            'iat'           => time(),
-            'exp'           => time() + (60 * 60 * 8),
+            'iss' => config('app.url'),
+            'sub' => $user->id,
+            'iat' => time(),
+            'exp' => time() + (60 * 60 * 8),
+            'token_version' => $user->token_version
         ];
 
-        $token = JWT::encode(
+        $jwt = JWT::encode(
             $payload,
             config('jwt.secret'),
             'HS256'
         );
 
-        AuditService::loginSuccess($user->id, $user->email);
-
+        // 6️⃣ Payload final
         return [
-            'token' => $token,
-            'user'  => $payload,
-            'raw_user' => $user
+            'token' => $jwt,
+            'raw_user' => $user,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'tenant_id' => $user->tenant_id,
+                'roles' => [$result->role_code],
+                'permissions' => $permissionCodes,
+                'is_superadmin' => (bool) $user->is_superadmin,
+            ]
         ];
     }
 }

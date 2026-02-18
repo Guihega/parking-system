@@ -1,63 +1,166 @@
-<div class="parking-wrapper">
-    <div class="parking-header">
-        <h2>Asignar cajón de estacionamiento</h2>
-        <span>Selecciona un espacio disponible en el plano</span>
+<div class="container-fluid ua-page">
+
+    <!-- HEADER -->
+    <div class="ua-header">
+        <div>
+            <h3 class="ua-title">
+                Asignar cajón de estacionamiento
+            </h3>
+            <p class="ua-subtitle">
+                Selecciona un espacio disponible en el plano
+            </p>
+        </div>
+
+        <div class="ua-toolbar">
+            <button id="openCheckoutModal"
+                class="btn-primary-action"
+                onclick="openCheckout()">
+                🔍 Buscar ticket / Cobrar
+            </button>
+        </div>
     </div>
-    <select id="branchSelectSpace" class="form-control mb-3">
-        <option value="">Selecciona sucursal</option>
-    </select>
-    <button id="openCheckoutModal" class="search-ticket-btn" onclick="openCheckout()">
-        🔍 Buscar ticket / Cobrar
-    </button>
-    {{-- <div id="spacesGrid" class="grid"></div> --}}
-    <div id="parkingMap" class="parking-map"></div>
-    <div class="glass-card vehicle-form mt-3">
-        <div class="vehicle-grid">
-            <div class="vehicle-field">
-                <label>Placa</label>
-                <input id="plateInput" placeholder="Ej. ABC-123">
+
+    <!-- SELECT SUCURSAL -->
+    <div class="ua-card mb-4">
+        <div class="card-body">
+            <select id="branchSelectSpace" class="ui-select">
+                <option value="">Selecciona sucursal</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- MAPA -->
+    <div class="ua-card mb-4">
+        <div class="card-body">
+            <div id="parkingMap" class="parking-map"></div>
+        </div>
+    </div>
+
+    <!-- REGISTRO ENTRADA -->
+    <div class="ua-card">
+        <div class="card-body">
+            <div id="selectedLabel" class="ua-pill mb-3">
+                Ningún cajón seleccionado
             </div>
-            <div class="vehicle-field">
-                <label>Tipo de vehículo</label>
-                <select id="vehicleTypeSelect" class="vehicle-select">
-                    <option value="">Tipo de vehículo</option>
-                </select>
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">Placa</label>
+                    <input id="plateInput"
+                        class="ua-input"
+                        placeholder="Ej. ABC-123" maxlength="10">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Tipo de vehículo</label>
+                    <select id="vehicleTypeSelect"
+                        class="ui-select">
+                        <option value="">Cargando...</option>
+                    </select>
+                </div>
+                <div class="col-md-4 d-grid">
+                    <button id="createTicketBtn"
+                        class="btn-primary-action"
+                        disabled>
+                        Registrar entrada
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-    <button id="createTicketBtn" class="btn btn-primary mt-3" disabled>
-        Registrar entrada
-    </button>
-    <div id="selectedLabel">Ningún cajón seleccionado</div>
 </div>
+
+<!-- ============================
+     MODAL TICKET
+============================ -->
+<div id="ticketModalOverlay" class="ua-modal-overlay" style="display:none;">
+    <div id="printTicketTemplate" style="display:none;">
+        <div class="print-ticket">
+            <h3>ParkEasy</h3>
+            <p id="printFolio"></p>
+            <p id="printPlate"></p>
+            <p id="printEntry"></p>
+            <div id="printQR"></div>
+        </div>
+    </div>
+    <div class="ticket-modal-card">
+        <!-- HEADER -->
+        <div class="ticket-header">
+            <div>
+                <h3 class="ticket-title">Ticket de ingreso</h3>
+                <p class="ticket-subtitle">Conserve este ticket para registrar su salida</p>
+            </div>
+            <button class="ticket-close" onclick="openModalTicket('ticketModalOverlay')">✕</button>
+        </div>
+        <!-- BODY -->
+        <div class="ticket-body">
+            <div class="ticket-folio" id="ticketFolio">
+                T-XXXXXXXX
+            </div>
+            <div class="ticket-info">
+                <div>
+                    <span class="ticket-label">Placa</span>
+                    <span id="ticketPlate" class="ticket-value">ABC-123</span>
+                </div>
+                <div>
+                    <span class="ticket-label">Ingreso</span>
+                    <span id="ticketEntryTime" class="ticket-value">--</span>
+                </div>
+            </div>
+            <div class="ticket-qr-wrapper">
+                <div id="qrCode"></div>
+            </div>
+        </div>
+        <!-- FOOTER -->
+        <div class="ticket-footer">
+            <button class="btn-secondary-action" onclick="closeTicketModal()">
+                Cerrar
+            </button>
+            <button class="btn-primary-action" onclick="printTicket()">
+                🖨 Imprimir
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
-    function validateEntryForm(){
-        const hasSpace   = selectedSpaceId !== null;
-        const hasPlate   = plateInput.value.trim().length >= 3;
-        const hasVehicle = vehicleTypeSelect.value !== '';
 
-        createBtn.disabled = !(hasSpace && hasPlate && hasVehicle);
-    }
-
-    plateInput.addEventListener('input', validateEntryForm);
-    vehicleTypeSelect.addEventListener('change', validateEntryForm);
-
-
+    /* ============================
+    ELEMENTOS
+    ============================ */
+    const plateInput         = document.getElementById('plateInput');
+    const vehicleTypeSelect  = document.getElementById('vehicleTypeSelect');
+    const createBtn          = document.getElementById('createTicketBtn');
+    const branchSelectSpace  = document.getElementById('branchSelectSpace');
     let selectedSpaceId = null;
-    const createBtn = document.getElementById('createTicketBtn');
-    const branchSelectSpace = document.getElementById('branchSelectSpace');
+    const PLATE_REGEX = /^[A-Z0-9-]{4,10}$/;
 
+    function validateEntryForm(){
+        const plate = plateInput.value.trim();
+        const plateRegex = /^[A-Z0-9-]{4,10}$/;
+        const hasSpace   = selectedSpaceId !== null;
+        const hasVehicle = vehicleTypeSelect.value !== '';
+        const validPlate = plateRegex.test(plate);
+        plateInput.classList.remove('invalid','valid');
+
+        if(plate.length > 0){
+            plateInput.classList.add(validPlate ? 'valid' : 'invalid');
+        }
+
+        createBtn.disabled = !(hasSpace && hasVehicle && validPlate);
+    }
+
+    plateInput.addEventListener('input', e => {
+        let value = e.target.value
+            .toUpperCase()
+            .replace(/[^A-Z0-9-]/g, '')
+            .substring(0, 10); // 🔐 límite real BD
+
+        plateInput.value = value;
+
+        validateEntryForm();
+    });
+
+    vehicleTypeSelect.addEventListener('change', validateEntryForm);
     document.getElementById('openCheckoutModal').onclick = openCheckout;
-
-
-    function openCheckout(){
-        document.getElementById('checkoutModalOverlay').style.display = 'flex';
-    }
-
-    function closeCheckout(){
-        document.getElementById('checkoutModalOverlay').style.display = 'none';
-    }
-
 
     branchSelectSpace.addEventListener('change', e => {
         selectedSpaceId = null;
@@ -78,12 +181,10 @@
         loadSpaces(branchId);
     });
 
-
     /* ============================
-    Fetch robusto (JSON + errores)
-    ============================= */
+       FETCH ROBUSTO
+    ============================ */
     async function apiFetch(url, options = {}) {
-
         const response = await fetch(url, {
             credentials: 'same-origin',
             headers: {
@@ -119,14 +220,13 @@
             );
 
             if (result.status !== 'success') {
-                alert(result.message || 'No fue posible cargar cajones');
+                showAlert('error', `No fue posible cargar cajones`);
                 return;
             }
 
             renderSpaces(result.data);
         } catch (err) {
-            alert(err.message || 'Error al consultar cajones');
-            console.error(err);
+            showAlert('error', `No fue posible cargar cajones`);
         }
     }
 
@@ -191,34 +291,26 @@
         return slot;
     }
 
-
     /* ============================
     Selección visual
     ============================= */
     function selectSpace(el,id,code){
-        document.querySelectorAll('.space-slot')
-            .forEach(x => x.classList.remove('selected'));
-
+        document.querySelectorAll('.space-slot').forEach(x => x.classList.remove('selected'));
         el.classList.add('selected');
         selectedSpaceId = id;
-
-        document.getElementById('selectedLabel')
-            .textContent = `Cajón seleccionado: ${code}`;
-
-        validateEntryForm();   // 👈 activa o no el botón según todo
+        document.getElementById('selectedLabel').textContent = `Cajón seleccionado: ${code}`;
+        validateEntryForm();
     }
-
-
 
     /* ============================
     Registrar ticket
     ============================= */
     createBtn.onclick = async () => {
         if(createBtn.disabled) return;
-
         const plate = plateInput.value.trim();
         const type  = vehicleTypeSelect.value;
         createBtn.disabled = true;
+        createBtn.innerHTML = 'Registrando...';
 
         try {
             const result = await apiFetch('/api/tickets/entry', {
@@ -231,76 +323,99 @@
                 })
             });
 
-            alert(`Ticket creado: ${result.ticket.folio}`);
+            if(result.status !== 'success'){
+                throw result;
+            }
 
-            // 🔄 reset real
-            selectedSpaceId = null;
-            plateInput.value = '';
-            vehicleTypeSelect.value = '';
-            createBtn.disabled = true;
-            document.getElementById('selectedLabel')
-                .textContent = 'Ningún cajón seleccionado';
+            showTicketModal(result.ticket);
+            resetEntryForm();
             loadSpaces(branchSelectSpace.value);
         } catch (err) {
-            alert(err.message || 'Error al registrar entrada');
-            console.error(err);
+            showAlert('error', err.message || 'Error al registrar entrada');
+        } finally {
+            createBtn.innerHTML = 'Registrar entrada';
+            validateEntryForm();
         }
     };
 
-    async function loadBranches(){
-        try{
-            const result = await apiFetch('/api/branches');
 
-            if(result.status !== 'success' || !result.branches.length){
-                alert('No se pudieron cargar sucursales');
+    function resetEntryForm(){
+        selectedSpaceId = null;
+        plateInput.value = '';
+        vehicleTypeSelect.value = '';
+        document.getElementById('selectedLabel').textContent = 'Ningún cajón seleccionado';
+        document.querySelectorAll('.space-slot').forEach(x => x.classList.remove('selected'));
+    }
+
+    function showTicketModal(ticket) {
+        document.getElementById('ticketFolio').innerText = ticket.folio;
+        document.getElementById('ticketPlate').innerText = ticket.plate;
+        document.getElementById('ticketEntryTime').innerText = ticket.entry_time;
+        generateQR(ticket.token);
+        document.getElementById('ticketModalOverlay').style.display = 'flex';
+        //openModal('ticketModalOverlay');
+    }
+
+    function generateQR(token){
+        const qrContainer = document.getElementById("qrCode");
+        qrContainer.innerHTML = "";
+        new QRCode(qrContainer, {
+            text: token,
+            width: 160,
+            height: 160,
+            correctLevel: QRCode.CorrectLevel.H
+        });
+    }
+
+    async function loadBranches()
+    {
+        try{
+            const response = await apiFetch('/api/branches');
+
+            if(
+                !response ||
+                response.status !== 'success' ||
+                !Array.isArray(response.branches) ||
+                response.branches.length === 0
+            ){
+                showAlert('error', 'No se pudieron cargar sucursales');
                 return;
             }
 
+            const branches = response.branches;
             branchSelectSpace.innerHTML = '';
-
-            result.branches.forEach((b,index)=>{
+            branches.forEach((b, index) => {
                 const opt = document.createElement('option');
                 opt.value = b.id;
-                opt.textContent = `${b.name} (${b.location})`;
+                opt.textContent = b.location
+                    ? `${b.name} (${b.location})`
+                    : b.name;
                 branchSelectSpace.appendChild(opt);
-
-                // 👉 seleccionar la primera automáticamente
                 if(index === 0){
                     branchSelectSpace.value = b.id;
                 }
             });
-
-            // 👉 cargar cajones de la sucursal por defecto
             loadSpaces(branchSelectSpace.value);
-
         }catch(err){
-            alert(err.message || 'Error cargando sucursales');
-            console.error(err);
+            showAlert('error', err.message || 'Error cargando sucursales');
         }
     }
 
     function openCheckout(){
-        const modal = document.getElementById('checkoutModalOverlay');
-        modal.style.display = 'flex';   // o block según tu CSS
+        openModal('modalCheckout');
         resetCheckoutModal();
-        // pequeño delay para asegurar render
-        setTimeout(() => {
-            tokenInput.focus();
-        }, 50);
     }
 
     async function loadVehicleTypes(){
         try{
             const result = await apiFetch('/api/vehicle-types');
-
             if(result.status !== 'success'){
-                alert('No se pudieron cargar tipos de vehículo');
+                showAlert('error', 'No se pudieron cargar tipos de vehículo');
                 return;
             }
 
             const select = document.getElementById('vehicleTypeSelect');
             select.innerHTML = '<option value="">Tipo de vehículo</option>';
-
             result.data.forEach(v=>{
                 const opt = document.createElement('option');
                 opt.value = v.id;
@@ -309,10 +424,32 @@
             });
 
         }catch(err){
-            console.error(err);
-            alert('Error cargando tipos de vehículo');
+            showAlert('errorr', 'Error cargando tipos de vehículo');
+            //console.error(err);
+            //alert('Error cargando tipos de vehículo');
         }
     }
+
+    function openModalTicket(id){
+        document.getElementById(id + 'Overlay')
+            ? document.getElementById(id + 'Overlay').style.display = 'flex'
+            : document.getElementById('ticketModalOverlay').style.display = 'flex';
+    }
+
+    function closeTicketModal(){
+        document.getElementById('ticketModalOverlay').style.display = 'none';
+    }
+
+    function printTicket(){
+        document.getElementById('printFolio').innerText =
+        document.getElementById('ticketFolio').innerText;
+        document.getElementById('printPlate').innerText =
+        document.getElementById('ticketPlate').innerText;
+        document.getElementById('printEntry').innerText =
+        document.getElementById('ticketEntryTime').innerText;
+        window.print();
+    }
+
 
     /* ============================
     Inicial

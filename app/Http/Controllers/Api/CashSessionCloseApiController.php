@@ -14,19 +14,21 @@ class CashSessionCloseApiController extends Controller
     {
         $request->validate([
             'cash_session_id' => 'required|integer|exists:cash_sessions,id',
-            'user_id' => 'required|integer',
-            'real_amount' => 'required|numeric|min:0',
-            'observations' => 'nullable|string'
+            'real_amount'     => 'required|numeric|min:0',
+            'observations'    => 'nullable|string'
         ]);
 
         try {
 
-            DB::statement(
-                'CALL sp_close_cash_session(?, ?, ?, ?)',
+            $tenantId = app('tenant_id');
+            $userId   = auth()->id();
+
+            $result = DB::select(
+                'CALL sp_close_cash_session_v2(?, ?, ?, ?, ?)',
                 [
+                    $tenantId,
                     $request->cash_session_id,
-                    auth()->id(),
-                    //$request->user_id,
+                    $userId,
                     $request->real_amount,
                     $request->observations
                 ]
@@ -34,7 +36,7 @@ class CashSessionCloseApiController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Caja cerrada correctamente'
+                'data'   => $result[0] ?? null
             ], 200);
 
         } catch (QueryException $e) {
@@ -45,7 +47,7 @@ class CashSessionCloseApiController extends Controller
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'No fue posible cerrar la caja'
+                'message' => $e->getMessage()
             ], 400);
 
         } catch (\Throwable $e) {
@@ -60,4 +62,5 @@ class CashSessionCloseApiController extends Controller
             ], 500);
         }
     }
+
 }

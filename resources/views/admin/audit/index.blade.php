@@ -6,17 +6,17 @@
     <div class="mb-3 d-flex gap-3 align-items-end">
         <div>
             <label>Desde</label>
-            <input type="date" id="filter-start" class="form-control">
+            <input type="date" id="filter-start" class="ua-input">
         </div>
 
         <div>
             <label>Hasta</label>
-            <input type="date" id="filter-end" class="form-control">
+            <input type="date" id="filter-end" class="ua-input">
         </div>
 
         <div>
             <label>Acción</label>
-            <select id="filter-action" class="form-control">
+            <select id="filter-action" class="ui-select form-control">
                 <option value="">Todas</option>
                 <option value="entry">Ingreso</option>
                 <option value="charge">Consulta de cobro</option>

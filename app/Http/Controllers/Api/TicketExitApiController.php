@@ -14,7 +14,7 @@ class TicketExitApiController extends Controller
     {
         $request->validate([
             'token' => 'required|string|size:64',
-            'payment_code' => 'required|string|max:30',
+            'payment_code' => 'required|in:cash,card,transfer',
         ]);
 
         // 🔐 usuario real desde JWT
@@ -28,24 +28,34 @@ class TicketExitApiController extends Controller
         }
 
         try {
-
             $result = DB::select(
-                'CALL sp_register_ticket_exit(?, ?, ?)',
+                'CALL sp_register_ticket_exit(?, ?, ?, ?)',
                 [
+                    $user->tenant_id,
                     $request->token,
                     $request->payment_code,
                     $user->id
                 ]
             );
 
+            DB::statement('SELECT 1'); // fuerza cierre
+
             if (empty($result)) {
                 return response()->json([
-                    'status' => 'success',
-                    'message' => 'Salida registrada correctamente'
-                ], 200);
+                    'status' => 'error',
+                    'message' => 'No se pudo obtener recibo'
+                ], 500);
             }
 
-            $row = $result[0];
+            //$row = $result[0];
+            $row = $result[0] ?? null;
+
+            if (!$row || !isset($row->folio)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Error interno generando recibo'
+                ], 500);
+            }
 
             return response()->json([
                 'status' => 'success',
@@ -58,7 +68,6 @@ class TicketExitApiController extends Controller
                     'payment_code' => $row->payment_code,
                 ],
             ], 200);
-
         } catch (QueryException $e) {
 
             $sqlState = $e->errorInfo[0] ?? null;

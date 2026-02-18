@@ -4,12 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
-use Firebase\JWT\JWT;
-use App\Services\AuditService;
-use Throwable;
 use App\Services\AuthService;
 
 class AuthApiController extends Controller

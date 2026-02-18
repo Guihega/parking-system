@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use App\Services\AuthService;
+use Illuminate\Support\Facades\Log;
 
 class AuthenticatedSessionController extends Controller
 {
@@ -25,15 +26,20 @@ class AuthenticatedSessionController extends Controller
                 $request->email,
                 $request->password
             );
+            Log::info('User logged in', [
+                'user_id' => $data['raw_user']->id,
+                'roles' => $data['user']['roles'],
+            ]);
 
             auth()->loginUsingId($data['raw_user']->id);
+            
+            $request->session()->regenerate();
 
             session([
                 'user_payload' => $data['user'],
                 'permissions' => $data['user']['permissions'],
                 'roles' => $data['user']['roles'],
             ]);
-
 
             return redirect()
                 ->intended(route('parking.select.space'))
@@ -50,7 +56,11 @@ class AuthenticatedSessionController extends Controller
             ));
 
         } catch (\Exception $e) {
-
+            Log::warning('Login failed', [
+                'email' => $request->email,
+                'error' => $e->getMessage(),
+            ]);
+            //dd($e->getMessage());
             return back()->withErrors([
                 'email' => 'Credenciales inválidas o usuario inactivo'
             ]);

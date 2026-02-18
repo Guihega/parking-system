@@ -1,8 +1,5 @@
 /.phpunit.cache
 /node_modules
-/public/build
-/public/hot
-/public/storage
 /storage/*.key
 /storage/pail
 /vendor
@@ -21,15 +18,4 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
-/vendor
-/node_modules
-/public/build
-/storage/*.key
-/storage/logs
-/storage/framework
-/.env
-/.env.*
-/.idea
-/.vscode
 .DS_Store
-npm-debug.log

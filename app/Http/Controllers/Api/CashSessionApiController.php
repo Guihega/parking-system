@@ -7,33 +7,86 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
+use App\Models\CashSession;
 
 class CashSessionApiController extends Controller
 {
     public function open(Request $request)
     {
-        $request->validate([
-            'branch_id' => 'required|integer',
-            'user_id' => 'nullable|integer',
-            'opening_amount' => 'required|numeric'
-        ]);
-
         try {
-            $result = DB::select(
-                'CALL sp_open_cash_session(?, ?, ?)',
-                [$request->branch_id, $request->user_id, $request->opening_amount]
-            );
+            $user = $request->user();
+            $tenantId = $request->get('tenant_id');
+            $permissions = $request->get('jwt_permissions');
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No autenticado'
+                ], 401);
+            }
+
+            if (!in_array('cash.open', $permissions)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No tienes permiso para abrir caja'
+                ], 403);
+            }
+
+            $validated = $request->validate([
+                'opening_amount' => 'required|numeric|min:0'
+            ]);
+
+            $existing = CashSession::where('tenant_id', $tenantId)
+                ->where('user_id', $user->id)
+                ->where('is_open', 1)
+                ->first();
+
+            if ($existing) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Ya tienes una caja abierta'
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            $cashSession = CashSession::create([
+                'tenant_id' => $tenantId,
+                'branch_id' => $user->branch_id ?? 1, // ajusta si tienes lógica de sucursal
+                'user_id' => $user->id,
+                'opening_amount' => $validated['opening_amount'],
+                'expected_amount' => $validated['opening_amount'],
+                'is_open' => 1,
+                'opened_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::commit();
 
             return response()->json([
                 'status' => 'success',
-                'cash_session_id' => $result[0]->cash_session_id
-            ], 201);
+                'message' => 'Caja abierta correctamente',
+                'data' => [
+                    'id' => $cashSession->id,
+                    'opening_amount' => $cashSession->opening_amount,
+                    'opened_at' => $cashSession->opened_at
+                ]
+            ]);
 
-        } catch (QueryException $e) {
+        } catch (\Throwable $e) {
+
+            DB::rollBack();
+
+            Log::error('Error al abrir caja', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'status' => 'error',
-                'message' => $e->errorInfo[2] ?? 'Error'
-            ], 409);
+                'message' => 'Error interno al abrir la caja'
+            ], 500);
         }
     }
 
@@ -64,7 +117,7 @@ class CashSessionApiController extends Controller
 
     public function current(Request $request)
     {
-        $user = $request->get('auth_user');
+        $user = $request->user();
 
         if (!$user) {
             return response()->json([

@@ -43,7 +43,6 @@ class JwtAuthMiddleware
             );
 
         } catch (\Firebase\JWT\ExpiredException $e) {
-
             return response()->json([
                 'status'  => 'error',
                 'code'    => 'TOKEN_EXPIRED',

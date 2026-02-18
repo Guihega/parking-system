@@ -15,10 +15,6 @@ class CashSessionController extends Controller
             ->where('is_open', 1)
             ->exists();
 
-/*         if ($hasOpen) {
-            return redirect()->route('dashboard'); // o donde operes tickets
-        }
- */
         $branches = DB::table('branches')->get();
 
         return view('cash.open', compact('branches'));
@@ -26,6 +22,7 @@ class CashSessionController extends Controller
 
     public function open(Request $request)
     {
+
         $request->validate([
             'branch_id' => 'required|integer',
             'opening_amount' => 'nullable|numeric|min:0'
@@ -51,4 +48,61 @@ class CashSessionController extends Controller
             ], 422);
         }
     }
+
+    public function closePreview(Request $request, int $id)
+    {
+        $tenantId = app('tenant_id');
+        $userId   = auth()->id();
+
+        // 1) Validar que la sesión exista, pertenezca al tenant, sea del usuario y esté abierta
+        $session = DB::table('cash_sessions')
+            ->where('id', $id)
+            ->where('tenant_id', $tenantId)
+            ->where('user_id', $userId)
+            ->where('is_open', 1)
+            ->first();
+
+        if (!$session) {
+            // Retornamos HTML porque lo consumirá el fetch y se inyecta al DOM
+            return response(
+                '<div class="p-4 text-center text-danger fw-bold">No tienes una caja abierta válida para cerrar (o no te pertenece).</div>',
+                403
+            );
+        }
+
+        // 2) Total cobrado (por payments) para esta caja y tenant
+        $totalCollected = (float) DB::table('payments')
+            ->where('tenant_id', $tenantId)
+            ->where('cash_session_id', $id)
+            ->sum('amount');
+
+        $openingAmount  = (float) $session->opening_amount;
+        $expectedAmount = $openingAmount + $totalCollected;
+
+        // 3) Retornar una vista parcial HTML (modal 2)
+        return view('admin.cash_sessions.close_preview', [
+            'cashSessionId'  => $session->id,
+            'openingAmount'  => $openingAmount,
+            'totalCollected' => $totalCollected,
+            'expectedAmount' => $expectedAmount,
+        ]);
+    }
+
+    public function current()
+    {
+        $tenantId = app('tenant_id');
+        $userId   = auth()->id();
+
+        $session = CashSession::where('tenant_id', $tenantId)
+            ->where('user_id', $userId)
+            ->where('is_open', 1)
+            ->first();
+
+        if ($session) {
+            return view('admin.cash_sessions.partials.session-open', compact('session'));
+        }
+
+        return view('admin.cash_sessions.partials.session-closed');
+    }
+
 }

@@ -19,7 +19,29 @@ class TicketChargeApiController extends Controller
         }
 
         try {
-            $result = DB::select('CALL sp_get_ticket_charge_v2(?)', [$token]);
+            $user = request()->get('auth_user');
+
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+
+            $result = DB::select(
+                'CALL sp_get_ticket_charge_v2(?, ?)',
+                [
+                    $user->tenant_id,
+                    $token
+                ]
+            );
+
+            if (empty($result)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No se pudo calcular el cobro (ticket inválido o cerrado)'
+                ], 409);
+            }
 
             $charge = $result[0];
 
@@ -35,24 +57,8 @@ class TicketChargeApiController extends Controller
                     'price_per_hour' => $charge->price_per_hour,
                     'amount' => $charge->amount,
                 ]
-            ]);
-
-            return response()->json([
-                'status' => 'success',
-                'ticket' => [
-                    'id' => $result[0]->ticket_id,
-                    'entry_time' => $result[0]->entry_time,
-                    'now' => $result[0]->now,
-                    'minutes' => $result[0]->minutes,
-                    'grace_minutes' => $result[0]->grace_minutes,
-                    'charged_hours' => $result[0]->charged_hours,
-                    'price_per_hour' => $result[0]->price_per_hour,
-                    'amount' => $result[0]->amount,
-                ],
             ], 200);
-
         } catch (QueryException $e) {
-
             $sqlState = $e->errorInfo[0] ?? null;
             $driverMessage = $e->errorInfo[2] ?? $e->getMessage();
 

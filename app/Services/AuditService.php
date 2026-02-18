@@ -12,7 +12,12 @@ class AuditService
      */
     public static function log(array $data): void
     {
+        $tenantId = app()->bound('tenant_id')
+            ? app('tenant_id')
+            : ($data['tenant_id'] ?? null);
+
         DB::table('audit_logs')->insert([
+            'tenant_id'   => $tenantId,
             'user_id'     => $data['actor_user_id'] ?? null,
             'action'      => $data['action'],
             'description' => $data['description'],
@@ -29,14 +34,10 @@ class AuditService
     public static function loginSuccess(int $userId, string $email): void
     {
         self::log([
+            'tenant_id'     => DB::table('users')->where('id',$userId)->value('tenant_id'),
             'action'        => 'LOGIN_SUCCESS',
             'actor_user_id' => $userId,
-            'target_type'   => 'USER',
-            'target_id'     => $userId,
             'description'   => 'Inicio de sesión exitoso',
-            'meta'          => [
-                'email' => $email
-            ],
         ]);
     }
 

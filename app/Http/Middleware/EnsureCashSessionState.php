@@ -14,8 +14,6 @@ class EnsureCashSessionState
             return redirect()->route('login');
         }
 
-        return redirect('/parking/core');
+        return $next($request);
     }
-
-
 }

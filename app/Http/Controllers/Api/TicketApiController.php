@@ -12,14 +12,20 @@ class TicketApiController extends Controller
 {
     public function store(Request $request)
     {
-        $request->validate([
-            'plate' => ['required', 'regex:/^[A-Z0-9-]{5,10}$/'],
-            'parking_space_id' => 'required|exists:parking_spaces,id',
+        // 1️⃣ Normalización defensiva
+        $request->merge([
+            'plate' => strtoupper(trim($request->plate ?? ''))
         ]);
 
-        // 🔐 JWT seguro
-        //$user = $request->get('auth_user');
-        $user = $request->attributes->get('auth_user'); // o auth()->user() si setUser() ya se hizo
+        // 2️⃣ Validación robusta
+        $validated = $request->validate([
+            'plate' => ['required', 'regex:/^[A-Z0-9-]{4,12}$/'],
+            'parking_space_id' => 'required|integer|exists:parking_spaces,id',
+            'vehicle_type_id' => 'required|integer|exists:vehicle_types,id',
+        ]);
+
+        // 🔐 Usuario desde JWT
+        $user = $request->attributes->get('auth_user');
 
         if (!$user) {
             return response()->json([
@@ -30,34 +36,47 @@ class TicketApiController extends Controller
 
         try {
 
+            // 3️⃣ Ejecutar SP
             $result = DB::select(
-                'CALL sp_register_ticket_entry(?, ?, ?)',
+                'CALL sp_register_ticket_entry(?, ?, ?, ?, ?)',
                 [
-                    strtoupper($request->plate),
-                    $request->parking_space_id,
-                    $user->id
+                    (int) $user->tenant_id,                  // 1️⃣ tenant
+                    $validated['plate'],                     // 2️⃣ plate
+                    (int) $validated['parking_space_id'],    // 3️⃣ space
+                    (int) $validated['vehicle_type_id'],     // 4️⃣ vehicle
+                    (int) $user->id                          // 5️⃣ user
                 ]
             );
 
             if (empty($result)) {
+                Log::error('SP returned empty resultset for ticket entry');
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'El SP no devolvió datos del ticket (revisa resultsets / SELECTs internos).',
+                    'message' => 'No fue posible generar el ticket (respuesta vacía del SP).'
                 ], 500);
             }
 
             $row = $result[0];
 
-            // Validación defensiva (si el resultset no es el esperado)
-            if (!isset($row->ticket_id, $row->folio, $row->token)) {
-                Log::warning('SP returned unexpected resultset', ['result' => $result]);
+            // 4️⃣ Validación estructural del resultset
+            if (
+                !isset(
+                    $row->ticket_id,
+                    $row->folio,
+                    $row->token
+                )
+            ) {
+                Log::warning('Unexpected SP result structure', [
+                    'result' => $result
+                ]);
+
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Respuesta inesperada del SP (posible SELECT interno en sp_log_ticket_event).',
-                    ...(config('app.debug') ? ['debug' => $result] : [])
+                    'message' => 'Respuesta inesperada del sistema al registrar ticket.'
                 ], 500);
             }
 
+            // 5️⃣ Respuesta consistente
             return response()->json([
                 'status' => 'success',
                 'ticket' => [
@@ -71,7 +90,7 @@ class TicketApiController extends Controller
                     'vehicle_type_id' => $row->vehicle_type_id,
                 ],
                 'print' => [
-                    'qr_text' => $row->qr_text
+                    'qr_text' => $row->qr_text ?? null
                 ]
             ], 201);
 
@@ -80,7 +99,7 @@ class TicketApiController extends Controller
             $sqlState = $e->errorInfo[0] ?? null;
             $driverMessage = $e->errorInfo[2] ?? $e->getMessage();
 
-            // 🎯 errores de negocio desde SP
+            // 🎯 Error de negocio lanzado desde SP (SIGNAL SQLSTATE '45000')
             if ($sqlState === '45000') {
                 return response()->json([
                     'status' => 'error',
@@ -88,20 +107,14 @@ class TicketApiController extends Controller
                 ], 409);
             }
 
-            Log::error('Ticket entry SQL failed', [
+            Log::error('Ticket entry SQL error', [
                 'sqlstate' => $sqlState,
                 'message' => $driverMessage
             ]);
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'No fue posible registrar el ingreso',
-                ...(config('app.debug') ? [
-                    'debug' => [
-                        'sqlstate' => $sqlState,
-                        'detail' => $driverMessage
-                    ]
-                ] : [])
+                'message' => 'No fue posible registrar el ingreso.'
             ], 400);
 
         } catch (\Throwable $e) {
@@ -112,9 +125,10 @@ class TicketApiController extends Controller
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'No fue posible registrar el ingreso',
+                'message' => 'Error inesperado al registrar el ingreso.'
             ], 500);
         }
     }
+
 
 }
