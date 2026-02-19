@@ -20,16 +20,16 @@ class AuthService
         );
 
         if (!$result) {
-            throw new \Exception('USER_NOT_FOUND');
+            throw new \Exception('AUTH.USER_NOT_FOUND');
         }
 
         if (!$result->is_active) {
-            throw new \Exception('USER_DISABLED');
+            throw new \Exception('AUTH.USER_DISABLED');
         }
 
         // 2️⃣ Validar password
         if (!Hash::check($password, $result->password)) {
-            throw new \Exception('INVALID_CREDENTIALS');
+            throw new \Exception('AUTH.INVALID_CREDENTIALS');
         }
 
         // 3️⃣ Permisos efectivos

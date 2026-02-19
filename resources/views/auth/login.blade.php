@@ -14,6 +14,31 @@
             <h1>PARK<span>EASY</span></h1>
             <p>Sistema de Gestión Inteligente</p>
         </div>
+        {{-- ALERTAS / ERRORES --}}
+        @if ($errors->any())
+            <div class="auth-alert auth-alert-error" role="alert">
+                <div class="auth-alert-icon">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div class="auth-alert-body">
+                    <div class="auth-alert-title">No se pudo iniciar sesión</div>
+                    <div class="auth-alert-msg">{{ $errors->first() }}</div>
+                </div>
+            </div>
+        @endif
+
+        @if (session('status'))
+            <div class="auth-alert auth-alert-info" role="alert">
+                <div class="auth-alert-icon">
+                    <i class="fa-solid fa-circle-info"></i>
+                </div>
+                <div class="auth-alert-body">
+                    <div class="auth-alert-title">Información</div>
+                    <div class="auth-alert-msg">{{ session('status') }}</div>
+                </div>
+            </div>
+        @endif
+
         <form method="POST" action="{{ route('login') }}">
             @csrf
             <div class="input-group">

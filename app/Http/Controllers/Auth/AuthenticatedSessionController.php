@@ -26,13 +26,14 @@ class AuthenticatedSessionController extends Controller
                 $request->email,
                 $request->password
             );
+
             Log::info('User logged in', [
                 'user_id' => $data['raw_user']->id,
                 'roles' => $data['user']['roles'],
             ]);
 
             auth()->loginUsingId($data['raw_user']->id);
-            
+
             $request->session()->regenerate();
 
             session([
@@ -56,17 +57,29 @@ class AuthenticatedSessionController extends Controller
             ));
 
         } catch (\Exception $e) {
+            $code = $e->getMessage();
+            //dd($code); // 👈 DEBUG REAL
             Log::warning('Login failed', [
                 'email' => $request->email,
-                'error' => $e->getMessage(),
+                'error' => $code,
             ]);
-            //dd($e->getMessage());
+
+            $message = match (true) {
+                str_contains($code, 'USER_NOT_FOUND') =>
+                    'No existe una cuenta con ese correo',
+                str_contains($code, 'USER_DISABLED') =>
+                    'El usuario está desactivado',
+                str_contains($code, 'INVALID_CREDENTIALS') =>
+                    'La contraseña es incorrecta',
+                default =>
+                    'No se pudo iniciar sesión, intenta nuevamente'
+            };
+
             return back()->withErrors([
-                'email' => 'Credenciales inválidas o usuario inactivo'
+                'email' => $message
             ]);
         }
     }
-
 
     public function destroy(Request $request): RedirectResponse
     {
